@@ -31,8 +31,8 @@ public class Player extends JFrame {
     private static final Logger LOGGER = LoggerFactory.getLogger(Player.class);
     private static final String IMG_DIR = "img/";
 
-    private int id = 0;
-    private int enemyId = 0;
+    private int id = -1;
+    private int enemyId = -1;
 
     private int backgroundGame;
     private transient Coordinate coordinateCurrentPlayer;
@@ -46,19 +46,20 @@ public class Player extends JFrame {
     private transient ObjectOutputStream outStream = null;
     private transient ObjectInputStream inStream = null;
     private boolean canProcessCommand = false;
+    private Field field;
 
     private class Field extends JPanel {
         private static final long serialVersionUID = 1L;
-
-        Field() {
-            loadImages();
-        }
 
         private InputStream getImageAsInputStream(final String imgName) {
             return this.getClass().getClassLoader().getResourceAsStream(IMG_DIR + imgName);
         }
 
-        private void loadImages() {
+        public void loadImages() {
+            doLoadImages();
+        }
+
+        private void doLoadImages() {
             try {
                 bg[backgroundGame] = ImageIO.read(getImageAsInputStream("fundo.png"));
                 stop = ImageIO.read(getImageAsInputStream("gameover.png"));
@@ -117,28 +118,16 @@ public class Player extends JFrame {
 
                 switch (Character.toLowerCase(e.getKeyChar())) {
                     case 'w':
-                        setWay(playerImage, coordinateCurrentPlayer);
-                        coordinateCurrentPlayer.addInPosY(-10);
-                        sendCommand(Command.UP);
-                        repaint();
+                        handleKeyPressed(Command.UP, 0, -10);
                         break;
                     case 's':
-                        setWay(playerImage, coordinateCurrentPlayer);
-                        coordinateCurrentPlayer.addInPosY(10);
-                        sendCommand(Command.DOWN);
-                        repaint();
+                        handleKeyPressed(Command.DOWN, 0, 10);
                         break;
                     case 'a':
-                        setWay(playerImage, coordinateCurrentPlayer);
-                        coordinateCurrentPlayer.addInPosX(-10);
-                        sendCommand(Command.LEFT);
-                        repaint();
+                        handleKeyPressed(Command.LEFT, -10, 0);
                         break;
                     case 'd':
-                        setWay(playerImage, coordinateCurrentPlayer);
-                        coordinateCurrentPlayer.addInPosX(+10);
-                        sendCommand(Command.RIGHT);
-                        repaint();
+                        handleKeyPressed(Command.RIGHT, 10, 0);
                         break;
                     default:
                         //
@@ -146,6 +135,13 @@ public class Player extends JFrame {
                 repaint();
             }
         });
+    }
+
+    private void handleKeyPressed(Command command, int addX, int addY) {
+        setWay(playerImage, coordinateCurrentPlayer);
+        coordinateCurrentPlayer.addInPosX(addX);
+        coordinateCurrentPlayer.addInPosY(addY);
+        sendCommand(command);
     }
 
     private void threadRead() {
@@ -204,6 +200,11 @@ public class Player extends JFrame {
         StartMessage msg = (StartMessage) message;
         this.coordinateEnemies = msg.getEnemiesCoordinates();
         this.coordinateCurrentPlayer = msg.getCoordinate();
+
+        this.enemyId = this.coordinateEnemies.get(0).getId();
+
+        this.field.doLoadImages();
+
         this.canProcessCommand = true;
     }
 
@@ -251,7 +252,6 @@ public class Player extends JFrame {
 
             InitialIdMessage msg = (InitialIdMessage) message;
             this.id = msg.getId();
-            this.enemyId = this.id == 0 ? 1 : 0;
             updateWindowTitle();
 
         } catch (final IOException | ClassNotFoundException | InvalidMessageException e) {
@@ -267,19 +267,18 @@ public class Player extends JFrame {
     public Player(final String title, final String ip, final int port) {
         super(title);
         setResizable(false);
-        pack(); // Esse pack() é para corrigir o bug do setResizable alterar o tamanho da janela
-        // às vezes
+        pack(); // avoid that setResizable change window's size
         connectOnServer(ip, port);
         loadVariablesWithDefaultValues();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        Field field = new Field();
-        add(field);
+        this.field = new Field();
+        add(this.field);
 
         addKeyListener(getKeyAdapter());
         pack();
         setVisible(true);
 
-        // Read commands from other players
+        // Read commands from server
         threadRead();
     }
 
