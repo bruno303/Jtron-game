@@ -1,6 +1,8 @@
-package com.example.jtron.client.player;
+package com.example.jtron.model.coordinate;
 
-public class Coordinate {
+import java.io.Serializable;
+
+public class Coordinate implements Serializable {
 
     private final int id;
     private int posX;

@@ -17,10 +17,12 @@ import javax.swing.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.exception.InvalidMessageException;
 import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
+import com.example.jtron.model.message.impl.StartMessage;
 import com.example.jtron.utils.Command;
 import com.example.jtron.utils.Constants;
 import com.example.jtron.utils.ThreadUtils;
@@ -34,7 +36,7 @@ public class Player extends JFrame {
 
     private int backgroundGame;
     private transient Coordinate coordinateCurrentPlayer;
-    private final List<Coordinate> coordinateEnemies = new ArrayList<>();
+    private List<Coordinate> coordinateEnemies;
 
     // Imagens
     private transient Image playerImage;
@@ -86,10 +88,15 @@ public class Player extends JFrame {
         public void paint(final Graphics g) {
             super.paint(g);
             g.drawImage(bg[backgroundGame], 0, 0, getSize().width, getSize().height, null);
-            g.drawImage(bg[id], coordinateCurrentPlayer.getPosX(),
-                    coordinateCurrentPlayer.getPosY(), null);
 
-            coordinateEnemies.forEach(ce -> g.drawImage(bg[enemyId], ce.getPosX(), ce.getPosY(), null));
+            if (coordinateCurrentPlayer != null) {
+                g.drawImage(bg[id], coordinateCurrentPlayer.getPosX(),
+                        coordinateCurrentPlayer.getPosY(), null);
+            }
+
+            if (coordinateEnemies != null) {
+                coordinateEnemies.forEach(ce -> g.drawImage(bg[enemyId], ce.getPosX(), ce.getPosY(), null));
+            }
         }
 
         @Override
@@ -154,7 +161,7 @@ public class Player extends JFrame {
                     final Command command = Command.parseCommand(message.getIdentifier());
 
                     if (command == Command.START) {
-                        this.canProcessCommand = true;
+                        processStartCommand(message);
                         continue;
                     }
 
@@ -189,6 +196,17 @@ public class Player extends JFrame {
         }).start();
     }
 
+    private void processStartCommand(Message message) {
+        if (!(message instanceof StartMessage)) {
+            throw new InvalidMessageException(message);
+        }
+
+        StartMessage msg = (StartMessage) message;
+        this.coordinateEnemies = msg.getEnemiesCoordinates();
+        this.coordinateCurrentPlayer = msg.getCoordinate();
+        this.canProcessCommand = true;
+    }
+
     private void processLoseCommand(int senderId) {
         try {
             bg[backgroundGame].getGraphics().drawImage(stop, 0, 0, null);
@@ -218,15 +236,6 @@ public class Player extends JFrame {
 
     private void loadVariablesWithDefaultValues() {
         backgroundGame = Constants.MAX_SIZE_PLAYERS;
-
-        if (id == 0) {
-            coordinateCurrentPlayer = new Coordinate(id, 20, 295);
-            coordinateEnemies.add(new Coordinate(enemyId, 600, 295));
-            return;
-        }
-
-        coordinateCurrentPlayer = new Coordinate(id, 600, 295);
-        coordinateEnemies.add(new Coordinate(enemyId, 20, 295));
     }
 
     private void connectOnServer(final String ip, final int port) {
@@ -243,11 +252,16 @@ public class Player extends JFrame {
             InitialIdMessage msg = (InitialIdMessage) message;
             this.id = msg.getId();
             this.enemyId = this.id == 0 ? 1 : 0;
+            updateWindowTitle();
 
         } catch (final IOException | ClassNotFoundException | InvalidMessageException e) {
             e.printStackTrace();
             System.exit(1);
         }
+    }
+
+    private void updateWindowTitle() {
+        this.setTitle(String.format("%s - Player %d", this.getTitle(), id + 1));
     }
 
     public Player(final String title, final String ip, final int port) {

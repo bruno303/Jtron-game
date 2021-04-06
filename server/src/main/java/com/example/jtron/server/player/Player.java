@@ -10,12 +10,12 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.exception.InvalidMessageException;
 import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
 import com.example.jtron.model.message.impl.StartMessage;
-import com.example.jtron.server.map.Coordinate;
 
 public class Player {
 
@@ -93,8 +93,8 @@ public class Player {
     }
 
     public void sendStartInformation(List<Player> enemies) {
-        final List<Integer> enemiesIds = enemies.stream().map(Player::getId).collect(Collectors.toList());
-        Message message = new StartMessage(id, enemiesIds);
+        final List<Coordinate> enemiesCoords = enemies.stream().map(Player::getCoordinate).collect(Collectors.toList());
+        Message message = new StartMessage(id, coordinate, enemiesCoords);
         sendCommand(message);
     }
 }

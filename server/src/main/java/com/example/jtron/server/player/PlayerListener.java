@@ -1,12 +1,11 @@
 package com.example.jtron.server.player;
 
+import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
-import com.example.jtron.server.map.Coordinate;
 import com.example.jtron.server.map.GameMap;
 import com.example.jtron.utils.Command;
 import com.example.jtron.utils.Constants;
-import com.example.jtron.utils.SocketMessageUtils;
 import com.example.jtron.utils.ThreadUtils;
 
 import java.util.List;

@@ -1,11 +1,11 @@
 package com.example.jtron.server.executor;
 
+import java.util.List;
+
 import com.example.jtron.server.map.GameMap;
 import com.example.jtron.server.player.Player;
 import com.example.jtron.server.player.PlayerListener;
 import com.example.jtron.server.player.ServerClientCollection;
-
-import java.util.List;
 
 public class GameExecutor {
     private final Player player1;
