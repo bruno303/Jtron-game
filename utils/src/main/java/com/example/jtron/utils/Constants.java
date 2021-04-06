@@ -11,5 +11,6 @@ public class Constants {
     public static final String CMD_RIGHT = "d";
     public static final String CMD_LOSE = "lose";
     public static final String CMD_START = "start";
+    public static final String CMD_ID = "id";
 
 }

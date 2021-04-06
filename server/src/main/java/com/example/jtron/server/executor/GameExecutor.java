@@ -25,8 +25,8 @@ public class GameExecutor {
     }
 
     private void startClients() {
-        player1.sendStartSignal();
-        player2.sendStartSignal();
+        player1.sendStartInformation(List.of(player2));
+        player2.sendStartInformation(List.of(player1));
     }
 }
 

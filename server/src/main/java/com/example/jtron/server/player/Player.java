@@ -1,16 +1,21 @@
 package com.example.jtron.server.player;
 
-import com.example.jtron.server.map.Coordinate;
-import com.example.jtron.utils.Command;
-import com.example.jtron.utils.Constants;
-import com.example.jtron.utils.SocketMessageUtils;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.net.Socket;
+import com.example.jtron.model.exception.InvalidMessageException;
+import com.example.jtron.model.message.Message;
+import com.example.jtron.model.message.impl.DefaultMessage;
+import com.example.jtron.model.message.impl.InitialIdMessage;
+import com.example.jtron.model.message.impl.StartMessage;
+import com.example.jtron.server.map.Coordinate;
 
 public class Player {
 
@@ -18,15 +23,15 @@ public class Player {
 
     private final int id;
     private Coordinate coordinate;
-    DataOutputStream sendCmd;
-    DataInputStream receiveCmd;
+    private ObjectOutputStream sendCmd;
+    private ObjectInputStream receiveCmd;
 
     public Player(Socket socket, int id) {
         this.id = id;
         defineCoordinate();
         try {
-            this.sendCmd = new DataOutputStream(socket.getOutputStream());
-            this.receiveCmd = new DataInputStream(socket.getInputStream());
+            this.sendCmd = new ObjectOutputStream(socket.getOutputStream());
+            this.receiveCmd = new ObjectInputStream(socket.getInputStream());
         } catch (IOException e) {
             LOGGER.error("Error when getting socket information.", e);
         }
@@ -45,10 +50,10 @@ public class Player {
         }
     }
 
-    public void sendCommand(String cmd) {
+    public void sendCommand(Message msg) {
         try {
-            sendCmd.writeUTF(cmd);
-            LOGGER.debug("Command sent: {}", cmd);
+            sendCmd.writeObject(msg);
+            LOGGER.debug("Command sent: {}", msg);
         } catch(Exception ignored) {
             //
         }
@@ -56,20 +61,26 @@ public class Player {
 
     public void sendPlayerId() {
         try {
-            sendCmd.writeInt(id);
+            Message msg = new InitialIdMessage(id);
+            sendCmd.writeObject(msg);
         } catch (IOException ignored) {
             //
         }
     }
 
-    public String readCommand() {
+    public DefaultMessage readCommand() {
         try {
-            String cmd = receiveCmd.readUTF();
-            LOGGER.debug("Command received: {}", cmd);
-            return cmd;
-        } catch (IOException e) {
+            final Object msgObj = receiveCmd.readObject();
+            if (!(msgObj instanceof DefaultMessage)) {
+                throw new InvalidMessageException(msgObj);
+            }
+
+            DefaultMessage msg = (DefaultMessage) msgObj;
+            LOGGER.debug("Command received: {}", msg);
+            return msg;
+        } catch (IOException | ClassNotFoundException | InvalidMessageException e) {
             e.printStackTrace();
-            return "";
+            return null;
         }
     }
 
@@ -81,8 +92,9 @@ public class Player {
         return coordinate;
     }
 
-    public void sendStartSignal() {
-        String message = SocketMessageUtils.messageToString(id, Command.START);
+    public void sendStartInformation(List<Player> enemies) {
+        final List<Integer> enemiesIds = enemies.stream().map(Player::getId).collect(Collectors.toList());
+        Message message = new StartMessage(id, enemiesIds);
         sendCommand(message);
     }
 }

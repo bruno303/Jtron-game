@@ -1,24 +1,29 @@
 package com.example.jtron.client.player;
 
-import com.example.jtron.utils.Command;
-import com.example.jtron.utils.Constants;
-import com.example.jtron.utils.SocketMessageUtils;
-import com.example.jtron.utils.ThreadUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.imageio.ImageIO;
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.example.jtron.model.exception.InvalidMessageException;
+import com.example.jtron.model.message.Message;
+import com.example.jtron.model.message.impl.DefaultMessage;
+import com.example.jtron.model.message.impl.InitialIdMessage;
+import com.example.jtron.utils.Command;
+import com.example.jtron.utils.Constants;
+import com.example.jtron.utils.ThreadUtils;
 
 public class Player extends JFrame {
     private static final Logger LOGGER = LoggerFactory.getLogger(Player.class);
@@ -36,8 +41,8 @@ public class Player extends JFrame {
     private transient Image playerEnemyImage;
     private transient Image stop;
     private transient final Image[] bg = new Image[Constants.MAX_SIZE_PLAYERS + 1];
-    private transient DataOutputStream outCharacter = null;
-    private transient DataInputStream inCharacter = null;
+    private transient ObjectOutputStream outStream = null;
+    private transient ObjectInputStream inStream = null;
     private boolean canProcessCommand = false;
 
     private class Field extends JPanel {
@@ -141,40 +146,42 @@ public class Player extends JFrame {
             while (true) {
                 repaint();
                 try {
-                    final String message = inCharacter.readUTF();
+                    final Object messageObj = inStream.readObject();
+                    final Message message = (Message) messageObj;
                     LOGGER.debug("Message received: {}", message);
 
-                    final int senderId = SocketMessageUtils.getPlayerIndex(message);
-                    final Command command = SocketMessageUtils.getCommand(message);
-                    Coordinate enemyCoord = getCorrectEnemy(senderId);
+                    final int senderId = message.getSenderId();
+                    final Command command = Command.parseCommand(message.getIdentifier());
+
+                    if (command == Command.START) {
+                        this.canProcessCommand = true;
+                        continue;
+                    }
 
                     if (command == Command.UP) {
-                        setWay(playerEnemyImage, enemyCoord);
-                        enemyCoord.addInPosY(-10);
-                        repaint();
-                    } else if (command == Command.DOWN) {
-                        setWay(playerEnemyImage, enemyCoord);
-                        enemyCoord.addInPosY(10);
-                        repaint();
-                    } else if (command == Command.LEFT) {
-                        setWay(playerEnemyImage, enemyCoord);
-                        enemyCoord.addInPosX(-10);
-                        repaint();
-                    } else if (command == Command.RIGHT) {
-                        setWay(playerEnemyImage, enemyCoord);
-                        enemyCoord.addInPosX(10);
-                        repaint();
-                    } else if (command == Command.START) {
-                        this.canProcessCommand = true;
-                    } else if (command == Command.LOSE) {
-                        bg[backgroundGame].getGraphics().drawImage(stop, 0, 0, null);
-                        repaint();
-                        inCharacter.close();
-                        String responseMessage = senderId == id ? "You lose!" : "You win!";
-                        JOptionPane.showMessageDialog(this, responseMessage);
-                        System.exit(0);
+                        processCommandReceived(senderId, 0, -10);
+                        continue;
                     }
-                } catch (IOException e) {
+
+                    if (command == Command.DOWN) {
+                        processCommandReceived(senderId, 0, 10);
+                        continue;
+                    }
+
+                    if (command == Command.LEFT) {
+                        processCommandReceived(senderId, -10, 0);
+                        continue;
+                    }
+
+                    if (command == Command.RIGHT) {
+                        processCommandReceived(senderId, 10, 0);
+                        continue;
+                    }
+
+                    if (command == Command.LOSE) {
+                        processLoseCommand(senderId);
+                    }
+                } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 }
                 ThreadUtils.sleep(5);
@@ -182,7 +189,29 @@ public class Player extends JFrame {
         }).start();
     }
 
-    private Coordinate getCorrectEnemy(int id) {
+    private void processLoseCommand(int senderId) {
+        try {
+            bg[backgroundGame].getGraphics().drawImage(stop, 0, 0, null);
+            repaint();
+            inStream.close();
+            outStream.close();
+            String responseMessage = senderId == id ? "You lose!" : "You win!";
+            JOptionPane.showMessageDialog(this, responseMessage);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.exit(0);
+    }
+
+    private void processCommandReceived(int senderId, int addInX, int addInY) {
+        final Coordinate coord = getCoord(senderId);
+        setWay(playerEnemyImage, coord);
+        coord.addInPosX(addInX);
+        coord.addInPosY(addInY);
+        repaint();
+    }
+
+    private Coordinate getCoord(int id) {
         return this.coordinateEnemies.stream().filter(e -> e.getId() == id).findAny()
                 .orElseThrow(() -> new RuntimeException("Player not found: " + id));
     }
@@ -203,11 +232,19 @@ public class Player extends JFrame {
     private void connectOnServer(final String ip, final int port) {
         try {
             Socket connectionSocket = new Socket(ip, port);
-            outCharacter = new DataOutputStream(connectionSocket.getOutputStream());
-            inCharacter = new DataInputStream(connectionSocket.getInputStream());
-            this.id = inCharacter.readInt();
+            outStream = new ObjectOutputStream(connectionSocket.getOutputStream());
+            inStream = new ObjectInputStream(connectionSocket.getInputStream());
+            final Object message = inStream.readObject();
+
+            if (!(message instanceof InitialIdMessage)) {
+                throw new InvalidMessageException(message);
+            }
+
+            InitialIdMessage msg = (InitialIdMessage) message;
+            this.id = msg.getId();
             this.enemyId = this.id == 0 ? 1 : 0;
-        } catch (final IOException e) {
+
+        } catch (final IOException | ClassNotFoundException | InvalidMessageException e) {
             e.printStackTrace();
             System.exit(1);
         }
@@ -234,9 +271,9 @@ public class Player extends JFrame {
 
     protected void sendCommand(Command command) {
         try {
-            String message = SocketMessageUtils.messageToString(id, command);
-            outCharacter.writeUTF(message);
-            outCharacter.flush();
+            Message message = new DefaultMessage(id, command.getValue());
+            outStream.writeObject(message);
+            outStream.flush();
         } catch (Exception ignored) {
             //
         }

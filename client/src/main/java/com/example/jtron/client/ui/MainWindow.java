@@ -16,7 +16,7 @@ public class MainWindow extends JFrame {
     private static final long serialVersionUID = 1L;
 
     private static final String TITLE = "J-TRON";
-    private static final String DEFAULT_IP = "192.168.0.133";
+    private static final String DEFAULT_IP = "192.168.0.20";
     private static final int DEFAULT_PORT = 7887;
 
     private final JButton btStart = new JButton("Start");

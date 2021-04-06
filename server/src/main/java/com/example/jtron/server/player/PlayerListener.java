@@ -1,5 +1,7 @@
 package com.example.jtron.server.player;
 
+import com.example.jtron.model.message.Message;
+import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.server.map.Coordinate;
 import com.example.jtron.server.map.GameMap;
 import com.example.jtron.utils.Command;
@@ -25,14 +27,14 @@ public class PlayerListener extends Thread {
     @Override
     public void run() {
         while (true) {
-            String cmd = source.readCommand();
-            processMessage(cmd);
+            final DefaultMessage msg = source.readCommand();
+            processMessage(msg);
             Optional<Command> responseOpt = validate();
             updateMap();
-            targets.forEach(t -> t.sendCommand(cmd));
+            targets.forEach(t -> t.sendCommand(msg));
 
             responseOpt.ifPresent(commandResponse -> {
-                final String response = SocketMessageUtils.messageToString(source.getId(), commandResponse);
+                Message response = new DefaultMessage(source.getId(), commandResponse.getValue());
                 source.sendCommand(response);
                 targets.forEach(t -> t.sendCommand(response));
             });
@@ -54,12 +56,12 @@ public class PlayerListener extends Thread {
         return Optional.empty();
     }
 
-    private void processMessage(String message) {
+    private void processMessage(DefaultMessage msg) {
 
-        Command command = SocketMessageUtils.getCommand(message);
+        String command = msg.getIdentifier();
         Coordinate coordinate = source.getCoordinate();
 
-        switch (command.getValue()) {
+        switch (command) {
             case Constants.CMD_UP:
                 coordinate.addInPosY(-10);
                 break;
