@@ -16,6 +16,8 @@ import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
 import com.example.jtron.model.message.impl.StartMessage;
+import com.example.jtron.model.player.PlayerData;
+import com.example.jtron.model.player.PlayerImages;
 
 public class Player {
 
@@ -25,10 +27,11 @@ public class Player {
     private Coordinate coordinate;
     private ObjectOutputStream sendCmd;
     private ObjectInputStream receiveCmd;
+    private PlayerImages images;
 
     public Player(Socket socket, int id) {
         this.id = id;
-        defineCoordinate();
+        definePlayerData();
         try {
             this.sendCmd = new ObjectOutputStream(socket.getOutputStream());
             this.receiveCmd = new ObjectInputStream(socket.getInputStream());
@@ -37,13 +40,25 @@ public class Player {
         }
     }
 
-    private void defineCoordinate() {
+    private void definePlayerData() {
         switch (id) {
             case 0:
                 coordinate = new Coordinate(id, 20, 295);
+                images = new PlayerImages("jogador1.png",
+                        "rastro.png",
+                        "jogador2.png",
+                        "rastro2.png",
+                        "fundo.png",
+                        "gameover.png");
                 break;
             case 1:
                 coordinate = new Coordinate(id, 600, 295);
+                images = new PlayerImages("jogador2.png",
+                        "rastro2.png",
+                        "jogador1.png",
+                        "rastro.png",
+                        "fundo.png",
+                        "gameover.png");
                 break;
             default:
                 throw new RuntimeException("Invalid player id!" + id);
@@ -93,8 +108,12 @@ public class Player {
     }
 
     public void sendStartInformation(List<Player> enemies) {
-        final List<Coordinate> enemiesCoords = enemies.stream().map(Player::getCoordinate).collect(Collectors.toList());
-        Message message = new StartMessage(id, coordinate, enemiesCoords);
+        final List<PlayerData> enemiesData = enemies.stream().map(Player::getPlayerData).collect(Collectors.toList());
+        Message message = new StartMessage(id, getPlayerData(), enemiesData);
         sendCommand(message);
+    }
+
+    public PlayerData getPlayerData() {
+        return new PlayerData(id, coordinate, images);
     }
 }

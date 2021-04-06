@@ -8,8 +8,8 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -23,6 +23,8 @@ import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
 import com.example.jtron.model.message.impl.StartMessage;
+import com.example.jtron.model.player.PlayerData;
+import com.example.jtron.model.player.PlayerImages;
 import com.example.jtron.utils.Command;
 import com.example.jtron.utils.Constants;
 import com.example.jtron.utils.ThreadUtils;
@@ -35,18 +37,20 @@ public class Player extends JFrame {
     private int enemyId = -1;
 
     private int backgroundGame;
+    private PlayerData currentPlayerData;
+    private List<PlayerData> enemiesData;
     private transient Coordinate coordinateCurrentPlayer;
-    private List<Coordinate> coordinateEnemies;
+    private transient List<Coordinate> coordinateEnemies;
 
     // Imagens
     private transient Image playerImage;
     private transient Image playerEnemyImage;
     private transient Image stop;
-    private transient final Image[] bg = new Image[Constants.MAX_SIZE_PLAYERS + 1];
+    private final transient Image[] bg = new Image[Constants.MAX_SIZE_PLAYERS + 1];
     private transient ObjectOutputStream outStream = null;
     private transient ObjectInputStream inStream = null;
     private boolean canProcessCommand = false;
-    private Field field;
+    private final Field field;
 
     private class Field extends JPanel {
         private static final long serialVersionUID = 1L;
@@ -55,27 +59,19 @@ public class Player extends JFrame {
             return this.getClass().getClassLoader().getResourceAsStream(IMG_DIR + imgName);
         }
 
-        public void loadImages() {
-            doLoadImages();
+        public void loadImages(PlayerData playerData) {
+            doLoadImages(playerData);
         }
 
-        private void doLoadImages() {
+        private void doLoadImages(PlayerData playerData) {
             try {
-                bg[backgroundGame] = ImageIO.read(getImageAsInputStream("fundo.png"));
-                stop = ImageIO.read(getImageAsInputStream("gameover.png"));
-
-                if (id == 0) {
-                    bg[id] = ImageIO.read(getImageAsInputStream("jogador1.png"));
-                    playerImage = ImageIO.read(getImageAsInputStream("rastro.png"));
-                    bg[enemyId] = ImageIO.read(getImageAsInputStream("jogador2.png"));
-                    playerEnemyImage = ImageIO.read(getImageAsInputStream("rastro2.png"));
-                    return;
-                }
-
-                bg[id] = ImageIO.read(getImageAsInputStream("jogador2.png"));
-                playerImage = ImageIO.read(getImageAsInputStream("rastro2.png"));
-                bg[enemyId] = ImageIO.read(getImageAsInputStream("jogador1.png"));
-                playerEnemyImage = ImageIO.read(getImageAsInputStream("rastro.png"));
+                final PlayerImages imgs = playerData.getImages();
+                bg[backgroundGame] = ImageIO.read(getImageAsInputStream(imgs.getBackground()));
+                stop = ImageIO.read(getImageAsInputStream(imgs.getStop()));
+                bg[id] = ImageIO.read(getImageAsInputStream(imgs.getBackgroundCurrentPlayer()));
+                playerImage = ImageIO.read(getImageAsInputStream(imgs.getCurrentPlayer()));
+                bg[enemyId] = ImageIO.read(getImageAsInputStream(imgs.getBackgroundEnemy()));
+                playerEnemyImage = ImageIO.read(getImageAsInputStream(imgs.getEnemyPlayer()));
 
             } catch (final IOException e) {
                 LOGGER.error("Error loading game assets.", e);
@@ -198,12 +194,14 @@ public class Player extends JFrame {
         }
 
         StartMessage msg = (StartMessage) message;
-        this.coordinateEnemies = msg.getEnemiesCoordinates();
-        this.coordinateCurrentPlayer = msg.getCoordinate();
+        this.currentPlayerData = msg.getPlayerData();
+        this.enemiesData = msg.getEnemiesData();
+        this.coordinateEnemies = msg.getEnemiesData().stream().map(PlayerData::getCoordinate).collect(Collectors.toList());
+        this.coordinateCurrentPlayer = msg.getPlayerData().getCoordinate();
 
         this.enemyId = this.coordinateEnemies.get(0).getId();
 
-        this.field.doLoadImages();
+        this.field.loadImages(this.currentPlayerData);
 
         this.canProcessCommand = true;
     }

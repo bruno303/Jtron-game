@@ -2,20 +2,20 @@ package com.example.jtron.model.message.impl;
 
 import java.util.List;
 
-import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.message.Message;
+import com.example.jtron.model.player.PlayerData;
 import com.example.jtron.utils.Constants;
 
 public class StartMessage implements Message {
 
     private final int senderId;
-    private final Coordinate coordinate;
-    private final List<Coordinate> enemiesCoordinates;
+    private final PlayerData playerData;
+    private final List<PlayerData> enemiesData;
 
-    public StartMessage(int senderId, Coordinate coordinate, List<Coordinate> enemiesCoordinates) {
+    public StartMessage(int senderId, PlayerData playerData, List<PlayerData> enemiesData) {
         this.senderId = senderId;
-        this.coordinate = coordinate;
-        this.enemiesCoordinates = enemiesCoordinates;
+        this.playerData = playerData;
+        this.enemiesData = enemiesData;
     }
 
     @Override
@@ -28,11 +28,11 @@ public class StartMessage implements Message {
         return senderId;
     }
 
-    public List<Coordinate> getEnemiesCoordinates() {
-        return enemiesCoordinates;
+    public PlayerData getPlayerData() {
+        return playerData;
     }
 
-    public Coordinate getCoordinate() {
-        return coordinate;
+    public List<PlayerData> getEnemiesData() {
+        return enemiesData;
     }
 }
