@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,8 @@ import org.slf4j.LoggerFactory;
 
 import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.exception.InvalidMessageException;
+import com.example.jtron.model.exception.InvalidPlayerIdException;
+import com.example.jtron.model.exception.PlayerNotFoundException;
 import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
@@ -26,7 +29,6 @@ import com.example.jtron.model.message.impl.StartMessage;
 import com.example.jtron.model.player.PlayerData;
 import com.example.jtron.model.player.PlayerImages;
 import com.example.jtron.utils.Command;
-import com.example.jtron.utils.Constants;
 import com.example.jtron.utils.ThreadUtils;
 
 public class Player extends JFrame {
@@ -34,19 +36,17 @@ public class Player extends JFrame {
     private static final String IMG_DIR = "img/";
 
     private int id = -1;
-    private int enemyId = -1;
 
-    private int backgroundGame;
     private PlayerData currentPlayerData;
     private List<PlayerData> enemiesData;
     private transient Coordinate coordinateCurrentPlayer;
     private transient List<Coordinate> coordinateEnemies;
 
     // Imagens
-    private transient Image playerImage;
-    private transient Image playerEnemyImage;
     private transient Image stop;
-    private final transient Image[] bg = new Image[Constants.MAX_SIZE_PLAYERS + 1];
+    private transient Image bg;
+    private transient PlayerImagesWrapper imgCurrentPlayer;
+    private final transient List<PlayerImagesWrapper> imgEnemies = new ArrayList<>();
     private transient ObjectOutputStream outStream = null;
     private transient ObjectInputStream inStream = null;
     private boolean canProcessCommand = false;
@@ -64,35 +64,42 @@ public class Player extends JFrame {
         }
 
         private void doLoadImages(PlayerData playerData) {
-            try {
-                final PlayerImages imgs = playerData.getImages();
-                bg[backgroundGame] = ImageIO.read(getImageAsInputStream(imgs.getBackground()));
-                stop = ImageIO.read(getImageAsInputStream(imgs.getStop()));
-                bg[id] = ImageIO.read(getImageAsInputStream(imgs.getBackgroundCurrentPlayer()));
-                playerImage = ImageIO.read(getImageAsInputStream(imgs.getCurrentPlayer()));
-                bg[enemyId] = ImageIO.read(getImageAsInputStream(imgs.getBackgroundEnemy()));
-                playerEnemyImage = ImageIO.read(getImageAsInputStream(imgs.getEnemyPlayer()));
+            final PlayerImages imgs = playerData.getImages();
+            bg = getImage(imgs.getBackground());
+            stop = getImage(imgs.getStop());
+            imgCurrentPlayer = new PlayerImagesWrapper(id, getImage(imgs.getCurrentPlayer()), getImage(imgs.getCurrentPlayerPath()));
+            enemiesData.forEach(e -> imgEnemies.add(new PlayerImagesWrapper(e.getId(),
+                    getImage(e.getImages().getCurrentPlayer()),
+                    getImage(e.getImages().getCurrentPlayerPath()))));
+        }
 
+        private Image getImage(String name) {
+            try {
+                return ImageIO.read(getImageAsInputStream(name));
             } catch (final IOException e) {
                 LOGGER.error("Error loading game assets.", e);
                 JOptionPane.showMessageDialog(this, "Error loading game assets!", "Error",
                         JOptionPane.ERROR_MESSAGE);
                 System.exit(1);
+                return null;
             }
         }
 
         @Override
         public void paint(final Graphics g) {
             super.paint(g);
-            g.drawImage(bg[backgroundGame], 0, 0, getSize().width, getSize().height, null);
+            g.drawImage(bg, 0, 0, getSize().width, getSize().height, null);
 
             if (coordinateCurrentPlayer != null) {
-                g.drawImage(bg[id], coordinateCurrentPlayer.getPosX(),
+                g.drawImage(imgCurrentPlayer.getImgPlayer(), coordinateCurrentPlayer.getPosX(),
                         coordinateCurrentPlayer.getPosY(), null);
             }
 
             if (coordinateEnemies != null) {
-                coordinateEnemies.forEach(ce -> g.drawImage(bg[enemyId], ce.getPosX(), ce.getPosY(), null));
+                coordinateEnemies.forEach(ce -> {
+                    final PlayerImagesWrapper enemyImagesWrapper = getEnemyImagesWrapper(ce.getId());
+                    g.drawImage(enemyImagesWrapper.getImgPlayer(), ce.getPosX(), ce.getPosY(), null);
+                });
             }
         }
 
@@ -134,7 +141,7 @@ public class Player extends JFrame {
     }
 
     private void handleKeyPressed(Command command, int addX, int addY) {
-        setWay(playerImage, coordinateCurrentPlayer);
+        setWay(imgCurrentPlayer.getImgPlayerPath(), coordinateCurrentPlayer);
         coordinateCurrentPlayer.addInPosX(addX);
         coordinateCurrentPlayer.addInPosY(addY);
         sendCommand(command);
@@ -199,8 +206,6 @@ public class Player extends JFrame {
         this.coordinateEnemies = msg.getEnemiesData().stream().map(PlayerData::getCoordinate).collect(Collectors.toList());
         this.coordinateCurrentPlayer = msg.getPlayerData().getCoordinate();
 
-        this.enemyId = this.coordinateEnemies.get(0).getId();
-
         this.field.loadImages(this.currentPlayerData);
 
         this.canProcessCommand = true;
@@ -208,7 +213,7 @@ public class Player extends JFrame {
 
     private void processLoseCommand(int senderId) {
         try {
-            bg[backgroundGame].getGraphics().drawImage(stop, 0, 0, null);
+            bg.getGraphics().drawImage(stop, 0, 0, null);
             repaint();
             inStream.close();
             outStream.close();
@@ -220,9 +225,15 @@ public class Player extends JFrame {
         System.exit(0);
     }
 
+    private PlayerImagesWrapper getEnemyImagesWrapper(int id) {
+        return imgEnemies.stream().filter(e -> e.getIdPlayer() == id).findAny()
+                .orElseThrow(() -> new InvalidPlayerIdException(id));
+    }
+
     private void processCommandReceived(int senderId, int addInX, int addInY) {
         final Coordinate coord = getCoord(senderId);
-        setWay(playerEnemyImage, coord);
+        final PlayerImagesWrapper enemyImagesWrapper = getEnemyImagesWrapper(senderId);
+        setWay(enemyImagesWrapper.getImgPlayerPath(), coord);
         coord.addInPosX(addInX);
         coord.addInPosY(addInY);
         repaint();
@@ -230,11 +241,7 @@ public class Player extends JFrame {
 
     private Coordinate getCoord(int id) {
         return this.coordinateEnemies.stream().filter(e -> e.getId() == id).findAny()
-                .orElseThrow(() -> new RuntimeException("Player not found: " + id));
-    }
-
-    private void loadVariablesWithDefaultValues() {
-        backgroundGame = Constants.MAX_SIZE_PLAYERS;
+                .orElseThrow(() -> new PlayerNotFoundException(id));
     }
 
     private void connectOnServer(final String ip, final int port) {
@@ -249,7 +256,7 @@ public class Player extends JFrame {
             }
 
             InitialIdMessage msg = (InitialIdMessage) message;
-            this.id = msg.getId();
+            this.id = msg.getSenderId();
             updateWindowTitle();
 
         } catch (final IOException | ClassNotFoundException | InvalidMessageException e) {
@@ -267,7 +274,6 @@ public class Player extends JFrame {
         setResizable(false);
         pack(); // avoid that setResizable change window's size
         connectOnServer(ip, port);
-        loadVariablesWithDefaultValues();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         this.field = new Field();
         add(this.field);
@@ -291,6 +297,6 @@ public class Player extends JFrame {
     }
 
     protected void setWay(final Image wayImage, Coordinate coord) {
-        bg[backgroundGame].getGraphics().drawImage(wayImage, coord.getPosX(), coord.getPosY(), null);
+        bg.getGraphics().drawImage(wayImage, coord.getPosX(), coord.getPosY(), null);
     }
 }

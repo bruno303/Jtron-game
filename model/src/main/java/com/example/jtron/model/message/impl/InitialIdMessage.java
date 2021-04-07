@@ -20,8 +20,4 @@ public class InitialIdMessage implements Message {
     public int getSenderId() {
         return id;
     }
-
-    public int getId() {
-        return id;
-    }
 }

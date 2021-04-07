@@ -2,6 +2,8 @@ package com.example.jtron.utils;
 
 import java.util.stream.Stream;
 
+import com.example.jtron.utils.exceptions.CommandNotImplementedException;
+
 public enum Command {
 
     UP(Constants.CMD_UP),
@@ -21,7 +23,7 @@ public enum Command {
         return Stream.of(Command.values())
                 .filter(c -> c.value.equals(value))
                 .findAny()
-                .orElseThrow(() -> new RuntimeException(String.format("Command %s not implemented", value)));
+                .orElseThrow(() -> new CommandNotImplementedException(value));
     }
 
     public String getValue() {

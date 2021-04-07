@@ -4,6 +4,9 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.jtron.model.exception.MaxClientsSizeReachedException;
+import com.example.jtron.model.exception.PlayerNotFoundException;
+
 public class ServerClientCollection {
     private final List<Player> clients = new ArrayList<>();
     private final int maxSize;
@@ -23,7 +26,7 @@ public class ServerClientCollection {
             return player;
         }
 
-        throw new RuntimeException(String.format("Reached max clients size: %d", maxSize));
+        throw new MaxClientsSizeReachedException(maxSize);
     }
 
     private short getNextIndex() {
@@ -33,6 +36,6 @@ public class ServerClientCollection {
     public Player getById(int id) {
         return this.clients.stream().filter(c -> c.getId() == id)
                 .findAny()
-                .orElseThrow(() -> new RuntimeException("Player not found!" + id));
+                .orElseThrow(() -> new PlayerNotFoundException(id));
     }
 }

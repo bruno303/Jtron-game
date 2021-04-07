@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.example.jtron.model.coordinate.Coordinate;
 import com.example.jtron.model.exception.InvalidMessageException;
+import com.example.jtron.model.exception.InvalidPlayerIdException;
 import com.example.jtron.model.message.Message;
 import com.example.jtron.model.message.impl.DefaultMessage;
 import com.example.jtron.model.message.impl.InitialIdMessage;
@@ -44,24 +45,21 @@ public class Player {
         switch (id) {
             case 0:
                 coordinate = new Coordinate(id, 20, 295);
-                images = new PlayerImages("jogador1.png",
-                        "rastro.png",
-                        "jogador2.png",
-                        "rastro2.png",
-                        "fundo.png",
-                        "gameover.png");
+                images = PlayerImages.builder()
+                        .withCurrentPlayer("jogador1.png")
+                        .withCurrentPlayerPath("rastro.png")
+                        .build();
                 break;
             case 1:
                 coordinate = new Coordinate(id, 600, 295);
-                images = new PlayerImages("jogador2.png",
-                        "rastro2.png",
-                        "jogador1.png",
-                        "rastro.png",
-                        "fundo.png",
-                        "gameover.png");
+
+                images = PlayerImages.builder()
+                        .withCurrentPlayer("jogador2.png")
+                        .withCurrentPlayerPath("rastro2.png")
+                        .build();
                 break;
             default:
-                throw new RuntimeException("Invalid player id!" + id);
+                throw new InvalidPlayerIdException(id);
         }
     }
 
